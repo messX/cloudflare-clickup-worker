@@ -20,9 +20,9 @@ jobs:
           CLICKUP_API_TOKEN: ${{ secrets.CLICKUP_API_TOKEN }}
           CLICKUP_DEFAULT_LIST_ID: ${{ secrets.CLICKUP_DEFAULT_LIST_ID }}
         run: |
-          echo "$PD_SHARED_SECRET" | wrangler secret put PD_SHARED_SECRET --name clickup-workers --config ./wrangler.toml --ci
-          echo "$CLICKUP_API_TOKEN" | wrangler secret put CLICKUP_API_TOKEN --name clickup-workers --config ./wrangler.toml --ci
-          if [ -n "$CLICKUP_DEFAULT_LIST_ID" ]; then echo "$CLICKUP_DEFAULT_LIST_ID" | wrangler secret put CLICKUP_DEFAULT_LIST_ID --name clickup-workers --config ./wrangler.toml --ci; fi
+          echo "$PD_SHARED_SECRET" | wrangler secret put PD_SHARED_SECRET --name clickup-workers --config ./wrangler.toml
+          echo "$CLICKUP_API_TOKEN" | wrangler secret put CLICKUP_API_TOKEN --name clickup-workers --config ./wrangler.toml
+          if [ -n "$CLICKUP_DEFAULT_LIST_ID" ]; then echo "$CLICKUP_DEFAULT_LIST_ID" | wrangler secret put CLICKUP_DEFAULT_LIST_ID --name clickup-workers --config ./wrangler.toml; fi
       - name: Deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
