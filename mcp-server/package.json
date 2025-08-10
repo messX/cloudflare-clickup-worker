@@ -1,0 +1,23 @@
+{
+  "name": "clickup-mcp-server",
+  "version": "1.0.0",
+  "description": "MCP Server for ClickUp integration with Cursor",
+  "type": "module",
+  "main": "clickup-mcp.js",
+  "scripts": {
+    "start": "node clickup-mcp.js",
+    "dev": "node --watch clickup-mcp.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.4.0"
+  },
+  "keywords": [
+    "mcp",
+    "cursor",
+    "clickup",
+    "task-management",
+    "productivity"
+  ],
+  "author": "messX",
+  "license": "MIT"
+}
