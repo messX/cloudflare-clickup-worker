@@ -3,6 +3,7 @@
 .env
 .env.local
 .env.production
+mcp-server/.env
 
 # Dependencies
 node_modules/
