@@ -4,8 +4,8 @@ This guide shows you how to use your Cloudflare ClickUp Worker as a powerful lea
 
 ## 🎯 **How to Use This Setup for Learning**
 
-### **1. Weekly Learning Sessions (Automated)**
-Every Monday at 9:00 UTC, your worker automatically creates a structured learning session in ClickUp with:
+### **1. Weekly Learning Sessions (Manual via MCP)**
+Use the MCP server in Cursor to create structured learning sessions on-demand with:
 - 🎯 Pre-defined learning objectives
 - 📝 Structured session notes template
 - 🔗 Curated learning resources

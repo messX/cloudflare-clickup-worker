@@ -5,8 +5,9 @@ compatibility_date = "2024-10-01"
 [vars]
 # No plain vars by default; secrets set with `wrangler secret put`
 
-[triggers]
-crons = ["0 9 * * MON"]
+# Cron job removed - using MCP server for direct control instead
+# [triggers]
+# crons = ["0 9 * * MON"]
 
 [env.production]
 name = "clickup-workers"

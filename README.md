@@ -41,6 +41,7 @@ bash scripts/smoke_test.sh
 ```
 
 Cron
-- Defined in `wrangler.toml` (Mon 09:00 UTC). Adjust under `[triggers].crons`.
+- ~~Defined in `wrangler.toml` (Mon 09:00 UTC). Adjust under `[triggers].crons`.~~
+- **Removed** - Using MCP server for direct control instead
 
 
