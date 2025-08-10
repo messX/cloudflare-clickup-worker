@@ -1,0 +1,6 @@
+# Copy to .dev.vars for local dev
+PD_SHARED_SECRET="replace-with-a-secret"
+CLICKUP_API_TOKEN="replace-with-clickup-token"
+CLICKUP_DEFAULT_LIST_ID="replace-with-list-id"
+
+

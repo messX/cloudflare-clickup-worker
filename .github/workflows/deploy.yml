@@ -1,0 +1,38 @@
+name: Deploy
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm i -g wrangler@4
+      - name: Inject secrets
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          PD_SHARED_SECRET: ${{ secrets.PD_SHARED_SECRET }}
+          CLICKUP_API_TOKEN: ${{ secrets.CLICKUP_API_TOKEN }}
+          CLICKUP_DEFAULT_LIST_ID: ${{ secrets.CLICKUP_DEFAULT_LIST_ID }}
+        run: |
+          echo "$PD_SHARED_SECRET" | wrangler secret put PD_SHARED_SECRET --name clickup-workers --config ./wrangler.toml --ci
+          echo "$CLICKUP_API_TOKEN" | wrangler secret put CLICKUP_API_TOKEN --name clickup-workers --config ./wrangler.toml --ci
+          if [ -n "$CLICKUP_DEFAULT_LIST_ID" ]; then echo "$CLICKUP_DEFAULT_LIST_ID" | wrangler secret put CLICKUP_DEFAULT_LIST_ID --name clickup-workers --config ./wrangler.toml --ci; fi
+      - name: Deploy
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+        run: wrangler deploy --name clickup-workers --config ./wrangler.toml
+      - name: Smoke test
+        env:
+          PD_SHARED_SECRET: ${{ secrets.PD_SHARED_SECRET }}
+          WORKER_BASE_URL: ${{ secrets.WORKER_BASE_URL }}
+        run: |
+          sudo apt-get update && sudo apt-get install -y jq
+          BASE="$WORKER_BASE_URL" SECRET="$PD_SHARED_SECRET" bash scripts/smoke_test.sh
+
+
