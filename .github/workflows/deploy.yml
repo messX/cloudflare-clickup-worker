@@ -15,7 +15,7 @@ jobs:
       - run: npm i -g wrangler@4
       - name: Inject secrets
         env:
-          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           PD_SHARED_SECRET: ${{ secrets.PD_SHARED_SECRET }}
           CLICKUP_API_TOKEN: ${{ secrets.CLICKUP_API_TOKEN }}
           CLICKUP_DEFAULT_LIST_ID: ${{ secrets.CLICKUP_DEFAULT_LIST_ID }}
@@ -25,7 +25,7 @@ jobs:
           if [ -n "$CLICKUP_DEFAULT_LIST_ID" ]; then echo "$CLICKUP_DEFAULT_LIST_ID" | wrangler secret put CLICKUP_DEFAULT_LIST_ID --name clickup-workers --config ./wrangler.toml --ci; fi
       - name: Deploy
         env:
-          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
         run: wrangler deploy --name clickup-workers --config ./wrangler.toml
       - name: Smoke test
         env:
