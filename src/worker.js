@@ -14,6 +14,7 @@ export default {
       if (url.pathname === "/tasks.create" && method === "POST") return await handleCreate(await request.json(), env);
       if (url.pathname === "/tasks.list" && method === "GET") return await handleList(Object.fromEntries(url.searchParams.entries()), env);
       if (url.pathname === "/tasks.update" && method === "POST") return await handleUpdate(await request.json(), env);
+      if (url.pathname === "/tasks.delete" && method === "POST") return await handleDelete(await request.json(), env);
       if (url.pathname === "/learning/weekly" && method === "POST") return await createWeeklyLearningTask(await request.json(), env);
       if (url.pathname === "/learning/track" && method === "POST") return await trackLearningProgress(await request.json(), env);
       if (url.pathname === "/learning/goals" && method === "GET") return await getLearningGoals(env);
@@ -79,6 +80,29 @@ async function handleUpdate(body, env) {
   const resp = await fetch(`https://api.clickup.com/api/v2/task/${taskId}`, { method: "PUT", headers: { Authorization: token, "Content-Type": "application/json" }, body: JSON.stringify(payload) });
   const data = await resp.json(); if (!resp.ok) return json({ error: data }, resp.status);
   return json({ id: data.id, url: data.url, status: data.status?.status, title: data.name });
+}
+
+async function handleDelete(body, env) {
+  const taskId = body.id; 
+  if (!taskId) return json({ error: "id required" }, 400);
+  
+  const token = normalizeToken(env.CLICKUP_API_TOKEN); 
+  if (!token) return json({ error: "CLICKUP_API_TOKEN not set" }, 400);
+  
+  const resp = await fetch(`https://api.clickup.com/api/v2/task/${taskId}`, { 
+    method: "DELETE", 
+    headers: { Authorization: token, "Content-Type": "application/json" } 
+  });
+  
+  if (!resp.ok) {
+    const data = await resp.json();
+    return json({ error: data }, resp.status);
+  }
+  
+  return json({ 
+    message: "Task deleted successfully", 
+    id: taskId 
+  });
 }
 
 async function createWeeklyLearningTask(body, env) {

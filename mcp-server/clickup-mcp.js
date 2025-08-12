@@ -183,6 +183,20 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
+        name: 'delete_task',
+        description: 'Delete a ClickUp task',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'string',
+              description: 'Task ID to delete',
+            },
+          },
+          required: ['id'],
+        },
+      },
+      {
         name: 'create_learning_session',
         description: 'Create a structured learning session task',
         inputSchema: {
@@ -348,6 +362,21 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             {
               type: 'text',
               text: `✅ Task updated successfully!\n\n**Title:** ${result.title}\n**ID:** ${result.id}\n**Status:** ${result.status}\n**URL:** ${result.url}`,
+            },
+          ],
+        };
+      }
+
+      case 'delete_task': {
+        const result = await callWorker('/tasks.delete', 'POST', {
+          id: args.id,
+        });
+        
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `🗑️ Task deleted successfully!\n\n**ID:** ${result.id}\n**Message:** ${result.message}`,
             },
           ],
         };
