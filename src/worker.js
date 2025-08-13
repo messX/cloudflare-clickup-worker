@@ -99,10 +99,13 @@ export default {
       console.error(`[${requestId}] Request failed with error:`, e);
       console.error(`[${requestId}] Error stack:`, e.stack);
       
+      // Safely stringify error details
+      const errorDetails = process.env.NODE_ENV === 'development' ? safeStringifyError(e) : undefined;
+      
       return json({ 
         error: "internal_server_error",
         message: "An unexpected error occurred",
-        details: process.env.NODE_ENV === 'development' ? String(e) : undefined,
+        details: errorDetails,
         requestId,
         timestamp: new Date().toISOString()
       }, 500);
@@ -151,11 +154,19 @@ async function handleMe(env, requestId) {
     console.log(`[${requestId}] ClickUp API response status: ${resp.status}`);
     
     if (!resp.ok) {
-      console.log(`[${requestId}] ClickUp API error:`, data);
+      // Safely stringify ClickUp API error response
+      let errorDetails;
+      try {
+        errorDetails = typeof data === 'object' ? JSON.parse(JSON.stringify(data)) : { error: String(data) };
+      } catch (stringifyError) {
+        errorDetails = { error: "Error details could not be serialized", status: resp.status };
+      }
+      
+      console.log(`[${requestId}] ClickUp API error:`, errorDetails);
       return json({ 
         error: "clickup_api_error",
         message: "Failed to fetch user info from ClickUp",
-        details: data,
+        details: errorDetails,
         requestId 
       }, resp.status);
     }
@@ -174,7 +185,7 @@ async function handleMe(env, requestId) {
     return json({ 
       error: "network_error",
       message: "Failed to connect to ClickUp API",
-      details: error.message,
+      details: safeStringifyError(error),
       requestId 
     }, 500);
   }
@@ -238,11 +249,19 @@ async function handleCreate(body, env, requestId) {
     console.log(`[${requestId}] ClickUp API response status: ${resp.status}`);
     
     if (!resp.ok) {
-      console.log(`[${requestId}] ClickUp API error:`, data);
+      // Safely stringify ClickUp API error response
+      let errorDetails;
+      try {
+        errorDetails = typeof data === 'object' ? JSON.parse(JSON.stringify(data)) : { error: String(data) };
+      } catch (stringifyError) {
+        errorDetails = { error: "Error details could not be serialized", status: resp.status };
+      }
+      
+      console.log(`[${requestId}] ClickUp API error:`, errorDetails);
       return json({ 
         error: "clickup_api_error",
         message: "Failed to create task in ClickUp",
-        details: data,
+        details: errorDetails,
         requestId 
       }, resp.status);
     }
@@ -260,7 +279,7 @@ async function handleCreate(body, env, requestId) {
     return json({ 
       error: "network_error",
       message: "Failed to connect to ClickUp API",
-      details: error.message,
+      details: safeStringifyError(error),
       requestId 
     }, 500);
   }
@@ -310,11 +329,19 @@ async function handleList(query, env, requestId) {
     console.log(`[${requestId}] ClickUp API response status: ${resp.status}`);
     
     if (!resp.ok) {
-      console.log(`[${requestId}] ClickUp API error:`, data);
+      // Safely stringify ClickUp API error response
+      let errorDetails;
+      try {
+        errorDetails = typeof data === 'object' ? JSON.parse(JSON.stringify(data)) : { error: String(data) };
+      } catch (stringifyError) {
+        errorDetails = { error: "Error details could not be serialized", status: resp.status };
+      }
+      
+      console.log(`[${requestId}] ClickUp API error:`, errorDetails);
       return json({ 
         error: "clickup_api_error",
         message: "Failed to fetch tasks from ClickUp",
-        details: data,
+        details: errorDetails,
         requestId 
       }, resp.status);
     }
@@ -339,7 +366,7 @@ async function handleList(query, env, requestId) {
     return json({ 
       error: "network_error",
       message: "Failed to connect to ClickUp API",
-      details: error.message,
+      details: safeStringifyError(error),
       requestId 
     }, 500);
   }
@@ -392,11 +419,19 @@ async function handleUpdate(body, env, requestId) {
     console.log(`[${requestId}] ClickUp API response status: ${resp.status}`);
     
     if (!resp.ok) {
-      console.log(`[${requestId}] ClickUp API error:`, data);
+      // Safely stringify ClickUp API error response
+      let errorDetails;
+      try {
+        errorDetails = typeof data === 'object' ? JSON.parse(JSON.stringify(data)) : { error: String(data) };
+      } catch (stringifyError) {
+        errorDetails = { error: "Error details could not be serialized", status: resp.status };
+      }
+      
+      console.log(`[${requestId}] ClickUp API error:`, errorDetails);
       return json({ 
         error: "clickup_api_error",
         message: "Failed to update task in ClickUp",
-        details: data,
+        details: errorDetails,
         requestId 
       }, resp.status);
     }
@@ -414,7 +449,7 @@ async function handleUpdate(body, env, requestId) {
     return json({ 
       error: "network_error",
       message: "Failed to connect to ClickUp API",
-      details: error.message,
+      details: safeStringifyError(error),
       requestId 
     }, 500);
   }
@@ -460,11 +495,19 @@ async function handleDelete(body, env, requestId) {
         data = { error: "Unknown error", status: resp.status };
       }
       
-      console.log(`[${requestId}] ClickUp API error:`, data);
+      // Safely stringify ClickUp API error response
+      let errorDetails;
+      try {
+        errorDetails = typeof data === 'object' ? JSON.parse(JSON.stringify(data)) : { error: String(data) };
+      } catch (stringifyError) {
+        errorDetails = { error: "Error details could not be serialized", status: resp.status };
+      }
+      
+      console.log(`[${requestId}] ClickUp API error:`, errorDetails);
       return json({ 
         error: "clickup_api_error",
         message: "Failed to delete task in ClickUp",
-        details: data,
+        details: errorDetails,
         requestId 
       }, resp.status);
     }
@@ -480,7 +523,7 @@ async function handleDelete(body, env, requestId) {
     return json({ 
       error: "network_error",
       message: "Failed to connect to ClickUp API",
-      details: error.message,
+      details: safeStringifyError(error),
       requestId 
     }, 500);
   }
@@ -566,11 +609,19 @@ ${learningObjectives.map(obj => `- ${obj}`).join('\n')}
     console.log(`[${requestId}] ClickUp API response status: ${resp.status}`);
     
     if (!resp.ok) {
-      console.log(`[${requestId}] ClickUp API error:`, data);
+      // Safely stringify ClickUp API error response
+      let errorDetails;
+      try {
+        errorDetails = typeof data === 'object' ? JSON.parse(JSON.stringify(data)) : { error: String(data) };
+      } catch (stringifyError) {
+        errorDetails = { error: "Error details could not be serialized", status: resp.status };
+      }
+      
+      console.log(`[${requestId}] ClickUp API error:`, errorDetails);
       return json({ 
         error: "clickup_api_error",
         message: "Failed to create weekly learning task in ClickUp",
-        details: data,
+        details: errorDetails,
         requestId 
       }, resp.status);
     }
@@ -589,7 +640,7 @@ ${learningObjectives.map(obj => `- ${obj}`).join('\n')}
     return json({ 
       error: "network_error",
       message: "Failed to connect to ClickUp API",
-      details: error.message,
+      details: safeStringifyError(error),
       requestId 
     }, 500);
   }
@@ -671,11 +722,19 @@ ${body.nextSteps || '- Continue exploring current learning path'}
     console.log(`[${requestId}] ClickUp API response status: ${resp.status}`);
     
     if (!resp.ok) {
-      console.log(`[${requestId}] ClickUp API error:`, data);
+      // Safely stringify ClickUp API error response
+      let errorDetails;
+      try {
+        errorDetails = typeof data === 'object' ? JSON.parse(JSON.stringify(data)) : { error: String(data) };
+      } catch (stringifyError) {
+        errorDetails = { error: "Error details could not be serialized", status: resp.status };
+      }
+      
+      console.log(`[${requestId}] ClickUp API error:`, errorDetails);
       return json({ 
         error: "clickup_api_error",
         message: "Failed to track learning progress in ClickUp",
-        details: data,
+        details: errorDetails,
         requestId 
       }, resp.status);
     }
@@ -694,7 +753,7 @@ ${body.nextSteps || '- Continue exploring current learning path'}
     return json({ 
       error: "network_error",
       message: "Failed to connect to ClickUp API",
-      details: error.message,
+      details: safeStringifyError(error),
       requestId 
     }, 500);
   }
@@ -738,7 +797,7 @@ async function getLearningGoals(env, requestId) {
     return json({ 
       error: "internal_server_error",
       message: "Failed to retrieve default learning goals",
-      details: error.message,
+      details: safeStringifyError(error),
       requestId 
     }, 500);
   }
@@ -761,7 +820,7 @@ async function setLearningGoals(body, env, requestId) {
     return json({ 
       error: "internal_server_error",
       message: "Failed to update learning goals",
-      details: error.message,
+      details: safeStringifyError(error),
       requestId 
     }, 500);
   }
@@ -773,6 +832,18 @@ async function setLearningGoals(body, env, requestId) {
 function normalizeToken(t) {
   if (!t) return "";
   return String(t).replace(/^Bearer\s+/i, "").trim();
+}
+
+function safeStringifyError(error) {
+  try {
+    return {
+      message: error.message || String(error),
+      name: error.name,
+      stack: error.stack
+    };
+  } catch (stringifyError) {
+    return { message: "Error details could not be serialized" };
+  }
 }
 
 
