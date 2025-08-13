@@ -233,7 +233,27 @@ async function handleCreate(body, env, requestId) {
     custom_fields: body.custom_fields 
   };
   
-  if (body.due_date !== undefined) payload.due_date = String(body.due_date);
+  if (body.due_date !== undefined) {
+    // Convert due_date to milliseconds timestamp for ClickUp API
+    let dueDate;
+    if (typeof body.due_date === 'string') {
+      // If it's a date string, parse it
+      dueDate = new Date(body.due_date).getTime();
+    } else if (typeof body.due_date === 'number') {
+      // If it's already a timestamp, use it directly
+      dueDate = body.due_date;
+    } else {
+      // If it's invalid, skip it
+      console.log(`[${requestId}] Warning: Invalid due_date format:`, body.due_date);
+      dueDate = undefined;
+    }
+    
+    if (dueDate && !isNaN(dueDate)) {
+      payload.due_date = dueDate;
+    } else {
+      console.log(`[${requestId}] Warning: Could not parse due_date:`, body.due_date);
+    }
+  }
   
   console.log(`[${requestId}] Task creation payload prepared:`, JSON.stringify(payload, null, 2));
   
@@ -399,7 +419,27 @@ async function handleUpdate(body, env, requestId) {
   if (body.title !== undefined) payload.name = body.title;
   if (body.description !== undefined) payload.description = body.description;
   if (body.status !== undefined) payload.status = body.status;
-  if (body.due_date !== undefined) payload.due_date = String(body.due_date);
+  if (body.due_date !== undefined) {
+    // Convert due_date to milliseconds timestamp for ClickUp API
+    let dueDate;
+    if (typeof body.due_date === 'string') {
+      // If it's a date string, parse it
+      dueDate = new Date(body.due_date).getTime();
+    } else if (typeof body.due_date === 'number') {
+      // If it's already a timestamp, use it directly
+      dueDate = body.due_date;
+    } else {
+      // If it's invalid, skip it
+      console.log(`[${requestId}] Warning: Invalid due_date format:`, body.due_date);
+      dueDate = undefined;
+    }
+    
+    if (dueDate && !isNaN(dueDate)) {
+      payload.due_date = dueDate;
+    } else {
+      console.log(`[${requestId}] Warning: Could not parse due_date:`, body.due_date);
+    }
+  }
   if (body.assignees !== undefined) payload.assignees = body.assignees;
   if (body.priority !== undefined) payload.priority = body.priority;
   if (body.tags !== undefined) payload.tags = body.tags;
