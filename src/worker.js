@@ -2,26 +2,110 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const method = request.method.toUpperCase();
+    const requestId = generateRequestId();
+    
+    console.log(`[${requestId}] ${method} ${url.pathname} - Request started`);
+    
+    // Log request details (without sensitive data)
+    console.log(`[${requestId}] Headers: ${JSON.stringify({
+      'user-agent': request.headers.get('user-agent'),
+      'content-type': request.headers.get('content-type'),
+      'content-length': request.headers.get('content-length')
+    })}`);
 
     const secret = request.headers.get("X-Webhook-Secret");
     if (!secret || secret !== env.PD_SHARED_SECRET) {
-      return json({ error: "unauthorized" }, 401);
+      console.log(`[${requestId}] Authentication failed - Invalid or missing secret`);
+      return json({ 
+        error: "unauthorized", 
+        message: "Invalid or missing X-Webhook-Secret header",
+        requestId 
+      }, 401);
     }
 
+    console.log(`[${requestId}] Authentication successful`);
+
     try {
-      if (url.pathname === "/health" && method === "GET") return json({ ok: true });
-      if (url.pathname === "/clickup.me" && method === "GET") return await handleMe(env);
-      if (url.pathname === "/tasks.create" && method === "POST") return await handleCreate(await request.json(), env);
-      if (url.pathname === "/tasks.list" && method === "GET") return await handleList(Object.fromEntries(url.searchParams.entries()), env);
-      if (url.pathname === "/tasks.update" && method === "POST") return await handleUpdate(await request.json(), env);
-      if (url.pathname === "/tasks.delete" && method === "POST") return await handleDelete(await request.json(), env);
-      if (url.pathname === "/learning/weekly" && method === "POST") return await createWeeklyLearningTask(await request.json(), env);
-      if (url.pathname === "/learning/track" && method === "POST") return await trackLearningProgress(await request.json(), env);
-      if (url.pathname === "/learning/goals" && method === "GET") return await getLearningGoals(env);
-      if (url.pathname === "/learning/goals" && method === "POST") return await setLearningGoals(await request.json(), env);
-      return json({ error: "not found" }, 404);
+      let response;
+      
+      if (url.pathname === "/health" && method === "GET") {
+        console.log(`[${requestId}] Health check requested`);
+        response = json({ ok: true, timestamp: new Date().toISOString(), requestId });
+      } else if (url.pathname === "/clickup.me" && method === "GET") {
+        console.log(`[${requestId}] ClickUp user info requested`);
+        response = await handleMe(env, requestId);
+      } else if (url.pathname === "/tasks.create" && method === "POST") {
+        console.log(`[${requestId}] Task creation requested`);
+        const body = await request.json();
+        console.log(`[${requestId}] Task creation payload: ${JSON.stringify({ title: body.title, list_id: body.list_id })}`);
+        response = await handleCreate(body, env, requestId);
+      } else if (url.pathname === "/tasks.list" && method === "GET") {
+        console.log(`[${requestId}] Task listing requested`);
+        const query = Object.fromEntries(url.searchParams.entries());
+        console.log(`[${requestId}] Task listing query: ${JSON.stringify(query)}`);
+        response = await handleList(query, env, requestId);
+      } else if (url.pathname === "/tasks.update" && method === "POST") {
+        console.log(`[${requestId}] Task update requested`);
+        const body = await request.json();
+        console.log(`[${requestId}] Task update payload: ${JSON.stringify({ id: body.id, title: body.title })}`);
+        response = await handleUpdate(body, env, requestId);
+      } else if (url.pathname === "/tasks.delete" && method === "POST") {
+        console.log(`[${requestId}] Task deletion requested`);
+        const body = await request.json();
+        console.log(`[${requestId}] Task deletion payload: ${JSON.stringify({ id: body.id })}`);
+        response = await handleDelete(body, env, requestId);
+      } else if (url.pathname === "/learning/weekly" && method === "POST") {
+        console.log(`[${requestId}] Weekly learning session creation requested`);
+        const body = await request.json();
+        console.log(`[${requestId}] Learning session payload: ${JSON.stringify({ objectives: body.objectives?.length })}`);
+        response = await createWeeklyLearningTask(body, env, requestId);
+      } else if (url.pathname === "/learning/track" && method === "POST") {
+        console.log(`[${requestId}] Learning progress tracking requested`);
+        const body = await request.json();
+        console.log(`[${requestId}] Progress tracking payload: ${JSON.stringify({ time_spent: body.progress?.timeSpent })}`);
+        response = await trackLearningProgress(body, env, requestId);
+      } else if (url.pathname === "/learning/goals" && method === "GET") {
+        console.log(`[${requestId}] Learning goals requested`);
+        response = await getLearningGoals(env, requestId);
+      } else if (url.pathname === "/learning/goals" && method === "POST") {
+        console.log(`[${requestId}] Learning goals update requested`);
+        const body = await request.json();
+        console.log(`[${requestId}] Goals update payload: ${JSON.stringify({ goals_count: body.goals?.length })}`);
+        response = await setLearningGoals(body, env, requestId);
+      } else {
+        console.log(`[${requestId}] Endpoint not found: ${url.pathname}`);
+        response = json({ 
+          error: "not found", 
+          message: `Endpoint ${url.pathname} not found`,
+          availableEndpoints: [
+            "/health",
+            "/clickup.me", 
+            "/tasks.create",
+            "/tasks.list",
+            "/tasks.update",
+            "/tasks.delete",
+            "/learning/weekly",
+            "/learning/track",
+            "/learning/goals"
+          ],
+          requestId 
+        }, 404);
+      }
+      
+      console.log(`[${requestId}] Request completed successfully`);
+      return response;
+      
     } catch (e) {
-      return json({ error: String(e) }, 500);
+      console.error(`[${requestId}] Request failed with error:`, e);
+      console.error(`[${requestId}] Error stack:`, e.stack);
+      
+      return json({ 
+        error: "internal_server_error",
+        message: "An unexpected error occurred",
+        details: process.env.NODE_ENV === 'development' ? String(e) : undefined,
+        requestId,
+        timestamp: new Date().toISOString()
+      }, 500);
     }
   },
   // Scheduled function removed - using MCP server for direct control instead
@@ -31,86 +115,399 @@ export default {
 };
 
 function json(data, status = 200) {
-  return new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
-}
-
-async function handleMe(env) {
-  const token = normalizeToken(env.CLICKUP_API_TOKEN);
-  if (!token) return json({ error: "CLICKUP_API_TOKEN not set" }, 400);
-  const resp = await fetch("https://api.clickup.com/api/v2/user", { headers: { Authorization: token, "Content-Type": "application/json" } });
-  const data = await resp.json();
-  if (!resp.ok) return json({ error: data }, resp.status);
-  return json({ user: { id: data.user?.id, username: data.user?.username, email: data.user?.email } });
-}
-
-async function handleCreate(body, env) {
-  const listId = body.list_id || env.CLICKUP_DEFAULT_LIST_ID;
-  if (!listId) return json({ error: "list_id required" }, 400);
-  if (!body.title) return json({ error: "title required" }, 400);
-  const token = normalizeToken(env.CLICKUP_API_TOKEN);
-  if (!token) return json({ error: "CLICKUP_API_TOKEN not set" }, 400);
-  const payload = { name: body.title, description: body.description, status: body.status, assignees: body.assignees, priority: body.priority, tags: body.tags, custom_fields: body.custom_fields };
-  if (body.due_date !== undefined) payload.due_date = String(body.due_date);
-  const resp = await fetch(`https://api.clickup.com/api/v2/list/${listId}/task`, { method: "POST", headers: { Authorization: token, "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-  const data = await resp.json();
-  if (!resp.ok) return json({ error: data }, resp.status);
-  return json({ id: data.id, url: data.url, status: data.status?.status, title: data.name });
-}
-
-async function handleList(query, env) {
-  const listId = query.list_id || env.CLICKUP_DEFAULT_LIST_ID;
-  if (!listId) return json({ error: "list_id required" }, 400);
-  const token = normalizeToken(env.CLICKUP_API_TOKEN);
-  if (!token) return json({ error: "CLICKUP_API_TOKEN not set" }, 400);
-  const params = new URLSearchParams();
-  if (query.statuses) query.statuses.split(",").map((s) => s.trim()).filter(Boolean).forEach((s) => params.append("statuses[]", s));
-  if (query.page !== undefined) params.set("page", String(query.page));
-  if (query.limit !== undefined) params.set("limit", String(query.limit));
-  const resp = await fetch(`https://api.clickup.com/api/v2/list/${listId}/task?${params}`, { headers: { Authorization: token, "Content-Type": "application/json" } });
-  const data = await resp.json();
-  if (!resp.ok) return json({ error: data }, resp.status);
-  const tasks = (data.tasks || []).map((t) => ({ id: t.id, title: t.name, status: t.status?.status, due_date: t.due_date ? Number(t.due_date) : null, assignees: (t.assignees || []).map((a) => a.id), url: t.url }));
-  return json({ tasks });
-}
-
-async function handleUpdate(body, env) {
-  const taskId = body.id; if (!taskId) return json({ error: "id required" }, 400);
-  const token = normalizeToken(env.CLICKUP_API_TOKEN); if (!token) return json({ error: "CLICKUP_API_TOKEN not set" }, 400);
-  const payload = {}; if (body.title !== undefined) payload.name = body.title; if (body.description !== undefined) payload.description = body.description; if (body.status !== undefined) payload.status = body.status; if (body.due_date !== undefined) payload.due_date = String(body.due_date); if (body.assignees !== undefined) payload.assignees = body.assignees; if (body.priority !== undefined) payload.priority = body.priority; if (body.tags !== undefined) payload.tags = body.tags; if (body.custom_fields !== undefined) payload.custom_fields = body.custom_fields;
-  const resp = await fetch(`https://api.clickup.com/api/v2/task/${taskId}`, { method: "PUT", headers: { Authorization: token, "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-  const data = await resp.json(); if (!resp.ok) return json({ error: data }, resp.status);
-  return json({ id: data.id, url: data.url, status: data.status?.status, title: data.name });
-}
-
-async function handleDelete(body, env) {
-  const taskId = body.id; 
-  if (!taskId) return json({ error: "id required" }, 400);
-  
-  const token = normalizeToken(env.CLICKUP_API_TOKEN); 
-  if (!token) return json({ error: "CLICKUP_API_TOKEN not set" }, 400);
-  
-  const resp = await fetch(`https://api.clickup.com/api/v2/task/${taskId}`, { 
-    method: "DELETE", 
-    headers: { Authorization: token, "Content-Type": "application/json" } 
+  return new Response(JSON.stringify(data, null, 2), { 
+    status, 
+    headers: { 
+      "Content-Type": "application/json",
+      "X-Request-ID": data.requestId || "unknown"
+    } 
   });
+}
+
+function generateRequestId() {
+  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+}
+
+async function handleMe(env, requestId) {
+  console.log(`[${requestId}] Starting ClickUp user info request`);
   
-  if (!resp.ok) {
-    const data = await resp.json();
-    return json({ error: data }, resp.status);
+  const token = normalizeToken(env.CLICKUP_API_TOKEN);
+  if (!token) {
+    console.log(`[${requestId}] Error: CLICKUP_API_TOKEN not set`);
+    return json({ 
+      error: "configuration_error", 
+      message: "CLICKUP_API_TOKEN not set",
+      requestId 
+    }, 400);
   }
   
-  return json({ 
-    message: "Task deleted successfully", 
-    id: taskId 
-  });
+  try {
+    console.log(`[${requestId}] Calling ClickUp API: /api/v2/user`);
+    const resp = await fetch("https://api.clickup.com/api/v2/user", { 
+      headers: { Authorization: token, "Content-Type": "application/json" } 
+    });
+    
+    const data = await resp.json();
+    console.log(`[${requestId}] ClickUp API response status: ${resp.status}`);
+    
+    if (!resp.ok) {
+      console.log(`[${requestId}] ClickUp API error:`, data);
+      return json({ 
+        error: "clickup_api_error",
+        message: "Failed to fetch user info from ClickUp",
+        details: data,
+        requestId 
+      }, resp.status);
+    }
+    
+    console.log(`[${requestId}] ClickUp user info retrieved successfully`);
+    return json({ 
+      user: { 
+        id: data.user?.id, 
+        username: data.user?.username, 
+        email: data.user?.email 
+      },
+      requestId 
+    });
+  } catch (error) {
+    console.error(`[${requestId}] ClickUp API call failed:`, error);
+    return json({ 
+      error: "network_error",
+      message: "Failed to connect to ClickUp API",
+      details: error.message,
+      requestId 
+    }, 500);
+  }
 }
 
-async function createWeeklyLearningTask(body, env) {
+async function handleCreate(body, env, requestId) {
+  console.log(`[${requestId}] Starting task creation`);
+  
   const listId = body.list_id || env.CLICKUP_DEFAULT_LIST_ID;
-  if (!listId) return json({ error: "list_id required" }, 400);
+  if (!listId) {
+    console.log(`[${requestId}] Error: list_id required`);
+    return json({ 
+      error: "validation_error", 
+      message: "list_id required",
+      requestId 
+    }, 400);
+  }
+  
+  if (!body.title) {
+    console.log(`[${requestId}] Error: title required`);
+    return json({ 
+      error: "validation_error", 
+      message: "title required",
+      requestId 
+    }, 400);
+  }
   
   const token = normalizeToken(env.CLICKUP_API_TOKEN);
-  if (!token) return json({ error: "CLICKUP_API_TOKEN not set" }, 400);
+  if (!token) {
+    console.log(`[${requestId}] Error: CLICKUP_API_TOKEN not set`);
+    return json({ 
+      error: "configuration_error", 
+      message: "CLICKUP_API_TOKEN not set",
+      requestId 
+    }, 400);
+  }
+  
+  const payload = { 
+    name: body.title, 
+    description: body.description, 
+    status: body.status, 
+    assignees: body.assignees, 
+    priority: body.priority, 
+    tags: body.tags, 
+    custom_fields: body.custom_fields 
+  };
+  
+  if (body.due_date !== undefined) payload.due_date = String(body.due_date);
+  
+  console.log(`[${requestId}] Task creation payload prepared:`, JSON.stringify(payload, null, 2));
+  
+  try {
+    console.log(`[${requestId}] Calling ClickUp API: POST /api/v2/list/${listId}/task`);
+    const resp = await fetch(`https://api.clickup.com/api/v2/list/${listId}/task`, { 
+      method: "POST", 
+      headers: { Authorization: token, "Content-Type": "application/json" }, 
+      body: JSON.stringify(payload) 
+    });
+    
+    const data = await resp.json();
+    console.log(`[${requestId}] ClickUp API response status: ${resp.status}`);
+    
+    if (!resp.ok) {
+      console.log(`[${requestId}] ClickUp API error:`, data);
+      return json({ 
+        error: "clickup_api_error",
+        message: "Failed to create task in ClickUp",
+        details: data,
+        requestId 
+      }, resp.status);
+    }
+    
+    console.log(`[${requestId}] Task created successfully with ID: ${data.id}`);
+    return json({ 
+      id: data.id, 
+      url: data.url, 
+      status: data.status?.status, 
+      title: data.name,
+      requestId 
+    });
+  } catch (error) {
+    console.error(`[${requestId}] ClickUp API call failed:`, error);
+    return json({ 
+      error: "network_error",
+      message: "Failed to connect to ClickUp API",
+      details: error.message,
+      requestId 
+    }, 500);
+  }
+}
+
+async function handleList(query, env, requestId) {
+  console.log(`[${requestId}] Starting task listing`);
+  
+  const listId = query.list_id || env.CLICKUP_DEFAULT_LIST_ID;
+  if (!listId) {
+    console.log(`[${requestId}] Error: list_id required`);
+    return json({ 
+      error: "validation_error", 
+      message: "list_id required",
+      requestId 
+    }, 400);
+  }
+  
+  const token = normalizeToken(env.CLICKUP_API_TOKEN);
+  if (!token) {
+    console.log(`[${requestId}] Error: CLICKUP_API_TOKEN not set`);
+    return json({ 
+      error: "configuration_error", 
+      message: "CLICKUP_API_TOKEN not set",
+      requestId 
+    }, 400);
+  }
+  
+  const params = new URLSearchParams();
+  if (query.statuses) {
+    const statuses = query.statuses.split(",").map((s) => s.trim()).filter(Boolean);
+    statuses.forEach((s) => params.append("statuses[]", s));
+    console.log(`[${requestId}] Filtering by statuses:`, statuses);
+  }
+  if (query.page !== undefined) params.set("page", String(query.page));
+  if (query.limit !== undefined) params.set("limit", String(query.limit));
+  
+  console.log(`[${requestId}] Query parameters:`, params.toString());
+  
+  try {
+    console.log(`[${requestId}] Calling ClickUp API: GET /api/v2/list/${listId}/task`);
+    const resp = await fetch(`https://api.clickup.com/api/v2/list/${listId}/task?${params}`, { 
+      headers: { Authorization: token, "Content-Type": "application/json" } 
+    });
+    
+    const data = await resp.json();
+    console.log(`[${requestId}] ClickUp API response status: ${resp.status}`);
+    
+    if (!resp.ok) {
+      console.log(`[${requestId}] ClickUp API error:`, data);
+      return json({ 
+        error: "clickup_api_error",
+        message: "Failed to fetch tasks from ClickUp",
+        details: data,
+        requestId 
+      }, resp.status);
+    }
+    
+    const tasks = (data.tasks || []).map((t) => ({ 
+      id: t.id, 
+      title: t.name, 
+      status: t.status?.status, 
+      due_date: t.due_date ? Number(t.due_date) : null, 
+      assignees: (t.assignees || []).map((a) => a.id), 
+      url: t.url 
+    }));
+    
+    console.log(`[${requestId}] Retrieved ${tasks.length} tasks successfully`);
+    return json({ 
+      tasks,
+      total: tasks.length,
+      requestId 
+    });
+  } catch (error) {
+    console.error(`[${requestId}] ClickUp API call failed:`, error);
+    return json({ 
+      error: "network_error",
+      message: "Failed to connect to ClickUp API",
+      details: error.message,
+      requestId 
+    }, 500);
+  }
+}
+
+async function handleUpdate(body, env, requestId) {
+  console.log(`[${requestId}] Starting task update`);
+  
+  const taskId = body.id;
+  if (!taskId) {
+    console.log(`[${requestId}] Error: id required`);
+    return json({ 
+      error: "validation_error", 
+      message: "id required",
+      requestId 
+    }, 400);
+  }
+  
+  const token = normalizeToken(env.CLICKUP_API_TOKEN);
+  if (!token) {
+    console.log(`[${requestId}] Error: CLICKUP_API_TOKEN not set`);
+    return json({ 
+      error: "configuration_error", 
+      message: "CLICKUP_API_TOKEN not set",
+      requestId 
+    }, 400);
+  }
+  
+  const payload = {};
+  if (body.title !== undefined) payload.name = body.title;
+  if (body.description !== undefined) payload.description = body.description;
+  if (body.status !== undefined) payload.status = body.status;
+  if (body.due_date !== undefined) payload.due_date = String(body.due_date);
+  if (body.assignees !== undefined) payload.assignees = body.assignees;
+  if (body.priority !== undefined) payload.priority = body.priority;
+  if (body.tags !== undefined) payload.tags = body.tags;
+  if (body.custom_fields !== undefined) payload.custom_fields = body.custom_fields;
+  
+  console.log(`[${requestId}] Task update payload:`, JSON.stringify(payload, null, 2));
+  
+  try {
+    console.log(`[${requestId}] Calling ClickUp API: PUT /api/v2/task/${taskId}`);
+    const resp = await fetch(`https://api.clickup.com/api/v2/task/${taskId}`, { 
+      method: "PUT", 
+      headers: { Authorization: token, "Content-Type": "application/json" }, 
+      body: JSON.stringify(payload) 
+    });
+    
+    const data = await resp.json();
+    console.log(`[${requestId}] ClickUp API response status: ${resp.status}`);
+    
+    if (!resp.ok) {
+      console.log(`[${requestId}] ClickUp API error:`, data);
+      return json({ 
+        error: "clickup_api_error",
+        message: "Failed to update task in ClickUp",
+        details: data,
+        requestId 
+      }, resp.status);
+    }
+    
+    console.log(`[${requestId}] Task updated successfully`);
+    return json({ 
+      id: data.id, 
+      url: data.url, 
+      status: data.status?.status, 
+      title: data.name,
+      requestId 
+    });
+  } catch (error) {
+    console.error(`[${requestId}] ClickUp API call failed:`, error);
+    return json({ 
+      error: "network_error",
+      message: "Failed to connect to ClickUp API",
+      details: error.message,
+      requestId 
+    }, 500);
+  }
+}
+
+async function handleDelete(body, env, requestId) {
+  console.log(`[${requestId}] Starting task deletion`);
+  
+  const taskId = body.id;
+  if (!taskId) {
+    console.log(`[${requestId}] Error: id required`);
+    return json({ 
+      error: "validation_error", 
+      message: "id required",
+      requestId 
+    }, 400);
+  }
+  
+  const token = normalizeToken(env.CLICKUP_API_TOKEN);
+  if (!token) {
+    console.log(`[${requestId}] Error: CLICKUP_API_TOKEN not set`);
+    return json({ 
+      error: "configuration_error", 
+      message: "CLICKUP_API_TOKEN not set",
+      requestId 
+    }, 400);
+  }
+  
+  try {
+    console.log(`[${requestId}] Calling ClickUp API: DELETE /api/v2/task/${taskId}`);
+    const resp = await fetch(`https://api.clickup.com/api/v2/task/${taskId}`, { 
+      method: "DELETE", 
+      headers: { Authorization: token, "Content-Type": "application/json" } 
+    });
+    
+    console.log(`[${requestId}] ClickUp API response status: ${resp.status}`);
+    
+    if (!resp.ok) {
+      let data;
+      try {
+        data = await resp.json();
+      } catch (e) {
+        data = { error: "Unknown error", status: resp.status };
+      }
+      
+      console.log(`[${requestId}] ClickUp API error:`, data);
+      return json({ 
+        error: "clickup_api_error",
+        message: "Failed to delete task in ClickUp",
+        details: data,
+        requestId 
+      }, resp.status);
+    }
+    
+    console.log(`[${requestId}] Task deleted successfully`);
+    return json({ 
+      message: "Task deleted successfully", 
+      id: taskId,
+      requestId 
+    });
+  } catch (error) {
+    console.error(`[${requestId}] ClickUp API call failed:`, error);
+    return json({ 
+      error: "network_error",
+      message: "Failed to connect to ClickUp API",
+      details: error.message,
+      requestId 
+    }, 500);
+  }
+}
+
+async function createWeeklyLearningTask(body, env, requestId) {
+  console.log(`[${requestId}] Starting weekly learning session creation`);
+  
+  const listId = body.list_id || env.CLICKUP_DEFAULT_LIST_ID;
+  if (!listId) {
+    console.log(`[${requestId}] Error: list_id required`);
+    return json({ 
+      error: "validation_error", 
+      message: "list_id required",
+      requestId 
+    }, 400);
+  }
+  
+  const token = normalizeToken(env.CLICKUP_API_TOKEN);
+  if (!token) {
+    console.log(`[${requestId}] Error: CLICKUP_API_TOKEN not set`);
+    return json({ 
+      error: "configuration_error", 
+      message: "CLICKUP_API_TOKEN not set",
+      requestId 
+    }, 400);
+  }
   
   const now = new Date();
   const yyyy = now.getUTCFullYear();
@@ -155,30 +552,71 @@ ${learningObjectives.map(obj => `- ${obj}`).join('\n')}
     priority: 2 // High priority
   };
   
-  const resp = await fetch(`https://api.clickup.com/api/v2/list/${listId}/task`, {
-    method: "POST",
-    headers: { Authorization: token, "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  });
+  console.log(`[${requestId}] Weekly learning session payload prepared:`, JSON.stringify(payload, null, 2));
   
-  const data = await resp.json();
-  if (!resp.ok) return json({ error: data }, resp.status);
-  
-  return json({
-    id: data.id,
-    url: data.url,
-    status: data.status?.status,
-    title: data.name,
-    message: "Weekly learning task created successfully!"
-  });
+  try {
+    console.log(`[${requestId}] Calling ClickUp API: POST /api/v2/list/${listId}/task`);
+    const resp = await fetch(`https://api.clickup.com/api/v2/list/${listId}/task`, {
+      method: "POST",
+      headers: { Authorization: token, "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    
+    const data = await resp.json();
+    console.log(`[${requestId}] ClickUp API response status: ${resp.status}`);
+    
+    if (!resp.ok) {
+      console.log(`[${requestId}] ClickUp API error:`, data);
+      return json({ 
+        error: "clickup_api_error",
+        message: "Failed to create weekly learning task in ClickUp",
+        details: data,
+        requestId 
+      }, resp.status);
+    }
+    
+    console.log(`[${requestId}] Weekly learning task created successfully with ID: ${data.id}`);
+    return json({
+      id: data.id,
+      url: data.url,
+      status: data.status?.status,
+      title: data.name,
+      message: "Weekly learning task created successfully!",
+      requestId 
+    });
+  } catch (error) {
+    console.error(`[${requestId}] ClickUp API call failed:`, error);
+    return json({ 
+      error: "network_error",
+      message: "Failed to connect to ClickUp API",
+      details: error.message,
+      requestId 
+    }, 500);
+  }
 }
 
-async function trackLearningProgress(body, env) {
+async function trackLearningProgress(body, env, requestId) {
+  console.log(`[${requestId}] Starting learning progress tracking`);
+  
   const listId = body.list_id || env.CLICKUP_DEFAULT_LIST_ID;
-  if (!listId) return json({ error: "list_id required" }, 400);
+  if (!listId) {
+    console.log(`[${requestId}] Error: list_id required`);
+    return json({ 
+      error: "validation_error", 
+      message: "list_id required",
+      requestId 
+    }, 400);
+  }
   
   const token = normalizeToken(env.CLICKUP_API_TOKEN);
-  if (!token) return json({ error: "CLICKUP_API_TOKEN not set" }, 400);
+  if (!token) {
+    console.log(`[${requestId}] Error: CLICKUP_API_TOKEN not set`);
+    return json({ 
+      error: "configuration_error", 
+      message: "CLICKUP_API_TOKEN not set",
+      requestId 
+    }, 400);
+  }
   
   const now = new Date();
   const yyyy = now.getUTCFullYear();
@@ -219,29 +657,55 @@ ${body.nextSteps || '- Continue exploring current learning path'}
     priority: 1
   };
   
-  const resp = await fetch(`https://api.clickup.com/api/v2/list/${listId}/task`, {
-    method: "POST",
-    headers: { Authorization: token, "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  });
+  console.log(`[${requestId}] Learning progress tracking payload prepared:`, JSON.stringify(payload, null, 2));
   
-  const data = await resp.json();
-  if (!resp.ok) return json({ error: data }, resp.status);
-  
-  return json({
-    id: data.id,
-    url: data.url,
-    status: data.status?.status,
-    title: data.name,
-    message: "Learning progress tracked successfully!"
-  });
+  try {
+    console.log(`[${requestId}] Calling ClickUp API: POST /api/v2/list/${listId}/task`);
+    const resp = await fetch(`https://api.clickup.com/api/v2/list/${listId}/task`, {
+      method: "POST",
+      headers: { Authorization: token, "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    
+    const data = await resp.json();
+    console.log(`[${requestId}] ClickUp API response status: ${resp.status}`);
+    
+    if (!resp.ok) {
+      console.log(`[${requestId}] ClickUp API error:`, data);
+      return json({ 
+        error: "clickup_api_error",
+        message: "Failed to track learning progress in ClickUp",
+        details: data,
+        requestId 
+      }, resp.status);
+    }
+    
+    console.log(`[${requestId}] Learning progress tracked successfully with ID: ${data.id}`);
+    return json({
+      id: data.id,
+      url: data.url,
+      status: data.status?.status,
+      title: data.name,
+      message: "Learning progress tracked successfully!",
+      requestId 
+    });
+  } catch (error) {
+    console.error(`[${requestId}] ClickUp API call failed:`, error);
+    return json({ 
+      error: "network_error",
+      message: "Failed to connect to ClickUp API",
+      details: error.message,
+      requestId 
+    }, 500);
+  }
 }
 
-async function getLearningGoals(env) {
+async function getLearningGoals(env, requestId) {
+  console.log(`[${requestId}] Starting learning goals retrieval`);
   // For now, return default learning goals
   // In a real implementation, you might store these in a database or another service
-  return json({
-    goals: [
+  try {
+    const goals = [
       {
         id: "llm-mastery",
         title: "LLM Mastery",
@@ -263,17 +727,44 @@ async function getLearningGoals(env) {
         progress: 0,
         targetDate: "2024-12-31"
       }
-    ]
-  });
+    ];
+    console.log(`[${requestId}] Retrieved default learning goals successfully`);
+    return json({
+      goals,
+      requestId 
+    });
+  } catch (error) {
+    console.error(`[${requestId}] Error retrieving default learning goals:`, error);
+    return json({ 
+      error: "internal_server_error",
+      message: "Failed to retrieve default learning goals",
+      details: error.message,
+      requestId 
+    }, 500);
+  }
 }
 
-async function setLearningGoals(body, env) {
+async function setLearningGoals(body, env, requestId) {
   // This would typically save to a database
   // For now, just return success
-  return json({
-    message: "Learning goals updated successfully!",
-    goals: body.goals
-  });
+  console.log(`[${requestId}] Starting learning goals update`);
+  try {
+    const updatedGoals = body.goals || [];
+    console.log(`[${requestId}] Received goals for update:`, updatedGoals);
+    return json({
+      message: "Learning goals updated successfully!",
+      goals: updatedGoals,
+      requestId 
+    });
+  } catch (error) {
+    console.error(`[${requestId}] Error updating learning goals:`, error);
+    return json({ 
+      error: "internal_server_error",
+      message: "Failed to update learning goals",
+      details: error.message,
+      requestId 
+    }, 500);
+  }
 }
 
 // createWeeklyTask function removed - using MCP server for direct control instead
